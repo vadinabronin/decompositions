@@ -85,3 +85,63 @@ def make_svd(w,r,return_full_matrix = True):
         return A,B,full_
     else:
         return A,B
+    
+def get_n_perm(k,n):
+    a = [i for i in range(n)]
+    a[0] = k
+    a[k] = 0
+    return a
+
+def findM(A,B,dim):
+    g = get_n_perm(dim,len(A.shape))
+    A_ = torch.permute(A,g)
+    B_ = torch.permute(B,g)
+    s = A_.shape[0]
+    M = torch.zeros((s,s)).float().to(device = 'cuda')
+    for i in range(s):
+        for j in range(s):
+            M[i][j] = torch.norm(A_[i] - B_[j]).cpu().item()
+    return M
+
+def findP(A,B,dim):  
+    M = findM(A,B,dim)
+    s = A.shape[dim]
+    a = torch.ones((s,)).to(device = 'cuda')
+    b = torch.ones((s,)).to(device = 'cuda')
+    T = ot.emd(a, b, M)
+    #T = ot.sinkhorn(a,b,M,1)
+    return T
+
+def apply_perm(A,perms):
+    A_ = torch.clone(A)
+    n = len(A.shape)
+    for i,p in enumerate(perms):
+        g = get_n_perm(i,n)
+        A_ = torch.permute(A_,g)
+        A_ = A_[p]
+        A_ = torch.permute(A_,g)
+    return A_
+
+def basic_perm(n):
+    a = [i for i in range(n)]
+    return a
+
+def findPWC(A,projection_func,dims = None,n_iter_als = 5,**kwargs):
+    n = len(A.shape)
+    perms = [torch.tensor([i for i in range(n_)])[torch.randperm(n_)] for n_ in A.shape]
+    W = torch.randn(A.shape).to(device = 'cuda')
+    if(dims is None):
+        dims = [i for i in range(n)]
+    k = 0.5/n_iter_als
+    t = 0.5
+    for i in range(n_iter_als):
+        for d in dims:
+            W = (1 - t) * W + t * projection_func(apply_perm(A,perms),**kwargs)
+            perms[d] = basic_perm(A.shape[d])
+            P = findP(W,apply_perm(A,perms),d)
+            perm_ = torch.argmax(P, dim = 1)
+            perms[d] = perm_
+        err = torch.norm(apply_perm(A,perms) - W)
+        t += k
+    return perms,W
+
