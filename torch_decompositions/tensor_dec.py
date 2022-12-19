@@ -126,7 +126,7 @@ def basic_perm(n):
     a = [i for i in range(n)]
     return a
 
-def findPWC(A,projection_func,dims = None,n_iter_als = 5,**kwargs):
+def findPWC(A,projection_func,dims = None,n_iter_als = 5,verbose = True,**kwargs):
     n = len(A.shape)
     perms = [torch.tensor([i for i in range(n_)])[torch.randperm(n_)] for n_ in A.shape]
     W = torch.randn(A.shape).to(device = 'cuda')
@@ -142,6 +142,37 @@ def findPWC(A,projection_func,dims = None,n_iter_als = 5,**kwargs):
             perm_ = torch.argmax(P, dim = 1)
             perms[d] = perm_
         err = torch.norm(apply_perm(A,perms) - W)
+        if(verbose):
+            print('iter number: {},err: {}'.format(i,err))
         t += k
     return perms,W
 
+def vec(a):
+    return torch.reshape(a.t(),(np.prod(a.shape),))
+
+def reshape_fortran(x, shape):
+    if len(x.shape) > 0:
+        x = x.permute(*reversed(range(len(x.shape))))
+    return x.reshape(*reversed(shape)).permute(*reversed(range(len(shape))))
+
+def from_vec(a,shapes): 
+    return reshape_fortran(a,shapes)
+
+def kron_dec(A,shapes):
+    m1,m2,n1,n2 = shapes
+    #A = torch.reshape(A,(m1,n1,m2,n2))
+    vecs = []
+    for j in range(n1):
+        for i in range(m1):
+            vecs.append(vec(A[i * m2:(i + 1) * m2,j * n2:(j + 1) * n2]).cpu().numpy())
+    A_ = torch.tensor(np.vstack(tuple(vecs)),device = 'cuda')
+    u,s,v = torch.svd(A_)
+    vecU0 = s[0] * u[:,:1]
+    vecV0 = v[:,:1]
+    vecU1 = s[1] * u[:,1:2]
+    vecV1 = v[:,1:2]
+    return from_vec(vecU0,(m1,n1)),from_vec(vecV0,(m2,n2)),from_vec(vecU1,(m1,n1)),from_vec(vecV1,(m2,n2))
+
+def kron_proj(A,shapes):
+    A0_,B0_,A1_,B1_ = kron_dec(A,shapes)
+    return torch.kron(A0_,B0_) + torch.kron(A1_,B1_)
