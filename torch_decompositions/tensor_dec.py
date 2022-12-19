@@ -7,7 +7,7 @@ def get_psnr(X,full_):
     return psnr
 
 @torch.no_grad()
-def cp4(X,rank,n_iter = 25,lmb = 0.1):
+def cp4(X,rank,n_iter = 25,lmb = 0.1,return_full_matrix = True):
     m1 = X.shape[0] 
     m2 = X.shape[1] 
     m3 = X.shape[2]
@@ -38,7 +38,11 @@ def cp4(X,rank,n_iter = 25,lmb = 0.1):
         f = einsum('ijkm,il,jl,kl->lm',X,A,B,C).to(device = device)
         g = einsum('ir,jr,kr,il,jl,kl->lr',A,B,C,A,B,C).to(device = device)
         D = torch.transpose(torch.linalg.solve(g + lmb * torch.eye(g.shape[0]).to(device = device),f), 0, 1)
-    return A,B,C,D
+    if(return_full_matrix):
+        full_ = einsum('ir,jr,kr,tr->ijkt',A,B,C,D).to(device = A.device)
+        return A,B,C,D,full_
+    else:
+        return A,B,C,D
   
 def cores_cp_full(A,B,C,D):
     full_ = einsum('ir,jr,kr,tr->ijkt',A,B,C,D).to(device = A.device)
@@ -49,7 +53,7 @@ def cores_tucker_full(A,B,C,D,E):
     return full_
 
 @torch.no_grad()
-def make_tucker(w,rank):
+def make_tucker(w,rank,return_full_matrix = True):
     device = w.device 
     t = tntorch.Tensor(w, ranks_tucker = rank,device = device)
     A = t.tucker_core()
@@ -57,14 +61,22 @@ def make_tucker(w,rank):
     C = t.Us[1]
     D = t.Us[2]
     E = t.Us[3]
-    return A,B,C,D,E 
+    if(return_full_matrix):
+        full_ = einsum('tyhr,it,jy,kh,lr->ijkl',A,B,C,D,E).to(device = A.device)
+        return A,B,C,D,E,full_
+    else:
+        return A,B,C,D,E 
 
 def svd_to_full(A,B):
     return torch.mm(A,B)
 
 @torch.no_grad()
-def make_svd(w,r):
+def make_svd(w,r,return_full_matrix = True):
     u,s,v = torch.svd(w)
     A = torch.mm(u[:,:r], torch.diag(s[:r]))
     B = v[:,:r].t()
-    return A,B
+    if(return_full_matrix):
+        full_ = torch.mm(A,B)
+        return A,B,full_
+    else:
+        return A,B
