@@ -58,3 +58,13 @@ def make_tucker(w,rank):
     D = t.Us[2]
     E = t.Us[3]
     return A,B,C,D,E 
+
+def svd_to_full(A,B):
+    return torch.mm(A,B)
+
+@torch.no_grad()
+def make_svd(w,r):
+    u,s,v = torch.svd(w)
+    A = torch.mm(u[:,:r], torch.diag(s[:r]))
+    B = v[:,:r].t()
+    return A,B
