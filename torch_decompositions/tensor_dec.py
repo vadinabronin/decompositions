@@ -57,22 +57,4 @@ def make_tucker(w,rank):
     C = t.Us[1]
     D = t.Us[2]
     E = t.Us[3]
-    return A,B,C,D,E
-  
-def tucker_decomposition(w,rank):
-    step = len(rank) - 1
-    cores = []
-    l = list(w.shape)
-    n = len(w.shape)
-    r = list(reversed(rank))
-    sh = w.shape
-    for d in list(reversed(sh)):
-        w = torch.reshape(w,(d,-1))
-        u,s,v = torch.svd(w)
-        core = s[0] * u[:,:rank[step]]
-        cores.append(core)
-        w = v[:,:rank[step]]
-        w = torch.reshape(w,r[:n - step] + l[:step])
-        step -= 1
-    perm = [i for i in reversed(range(len(rank)))]
-    return [torch.permute(w,perm)] + list(reversed(cores))
+    return A,B,C,D,E 
